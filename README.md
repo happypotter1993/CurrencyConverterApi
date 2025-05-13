@@ -26,7 +26,7 @@ A fast, resilient ASP NET Core service for currency lookups and conversions, bac
    dotnet run --project CurrencyConverter
    ```  
 3. Browse to Swagger UI to explore endpoints:  
-
+![alt text](image.png)
 _Alternative via Docker_:  
 ```bash
 docker build -t currency-converter .
