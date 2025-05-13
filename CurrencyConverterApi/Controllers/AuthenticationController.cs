@@ -1,13 +1,10 @@
-﻿using System;
-using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
 
 namespace CurrencyConverter.Controllers
 {
@@ -40,7 +37,7 @@ namespace CurrencyConverter.Controllers
 								SecurityAlgorithms.HmacSha256);
 
 			var token = new JwtSecurityToken(
-								claims: new[] { new Claim(ClaimTypes.Name, "dev-user") },
+								claims: [new Claim(ClaimTypes.Name, "User")],
 								expires: DateTime.UtcNow.AddHours(1),
 								signingCredentials: creds);
 

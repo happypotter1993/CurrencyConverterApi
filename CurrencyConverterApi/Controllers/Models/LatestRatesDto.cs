@@ -1,6 +1,4 @@
-﻿public class LatestRatesDto
+﻿namespace CurrencyConverter.Controllers.Models
 {
-	public required string CurrencyCode { get; set; }
-	public DateTime Date { get; set; }
-	public required IDictionary<string, decimal> Rates { get; set; }
+	public record LatestRatesDto(string CurrencyCode, DateTime Date, IDictionary<string, decimal> Rates);
 }

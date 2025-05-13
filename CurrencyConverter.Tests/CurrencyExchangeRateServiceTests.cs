@@ -1,15 +1,12 @@
 ﻿// CurrencyConverter.Tests/AllTests.cs
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using CurrencyConverter.Services;
-using Microsoft.Extensions.Caching.Memory;
-using Moq;
-using Xunit;
-using System.Collections;
+using CurrencyConverter.Controllers.Models;
 using CurrencyConverter.Data.CurrencyExchangeRateProviders;
 using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
+using CurrencyConverter.Services;
+
+using Microsoft.Extensions.Caching.Memory;
+
+using Moq;
 
 namespace CurrencyConverter.Tests
 {
@@ -60,7 +57,7 @@ namespace CurrencyConverter.Tests
 				.ReturnsAsync(latest);
 
 			// Act
-			var dto = await _service.ConvertAsync("USD", "EUR", 100m);
+			ConversionResultDto dto = await _service.ConvertAsync("USD", "EUR", 100m);
 
 			// Assert
 			Assert.Equal("USD", dto.FromCurrencyCode);
@@ -82,7 +79,7 @@ namespace CurrencyConverter.Tests
 				.ReturnsAsync(sample);
 
 			// Act
-			var result = await _service.GetLatestRatesAsync("EUR");
+			LatestRatesResponse? result = await _service.GetLatestRatesAsync("EUR");
 
 			// Assert
 			if (result == null)
@@ -113,7 +110,7 @@ namespace CurrencyConverter.Tests
 				.ReturnsAsync(tsResponse);
 
 			// Act
-			var page = await _service.GetHistoricalRatesAsync(
+			HistoricalRatesPagedDto page = await _service.GetHistoricalRatesAsync(
 				new DateTime(2025, 1, 1),
 				new DateTime(2025, 1, 3),
 				"USD",
@@ -157,7 +154,7 @@ namespace CurrencyConverter.Tests
 				.ReturnsAsync(latest);
 
 			// Act
-			var result = await _provider.GetLatestRatesAsync("EUR");
+			LatestRatesResponse? result = await _provider.GetLatestRatesAsync("EUR");
 
 			// Assert
 			Assert.Equal(latest, result);
@@ -180,7 +177,7 @@ namespace CurrencyConverter.Tests
 				.ReturnsAsync(ts);
 
 			// Act
-			var result = await _provider.GetTimeSeriesAsync(
+			TimeSeriesResponse? result = await _provider.GetTimeSeriesAsync(
 				new DateTime(2025, 1, 1),
 				new DateTime(2025, 1, 3),
 				"EUR");

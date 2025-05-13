@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
-using CurrencyConverter.Controllers.Models;
+﻿using CurrencyConverter.Controllers.Models;
 using CurrencyConverter.Data.CurrencyExchangeRateProviders;
 using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
 
@@ -17,11 +12,7 @@ public class CurrencyExchangeRateService(ICurrencyExchangeRateProvider provider)
 	{
 		Dictionary<string, string> dict = await _provider.GetSupportedCurrenciesAsync()
 								  ?? [];
-		return dict.Select(kvp => new SupportedCurrencyDto
-		{
-			CurrencyCode = kvp.Key,
-			Currency = kvp.Value
-		});
+		return dict.Select(kvp => new SupportedCurrencyDto(kvp.Key, kvp.Value));
 	}
 
 	public async Task<ConversionResultDto> ConvertAsync(
@@ -34,15 +25,7 @@ public class CurrencyExchangeRateService(ICurrencyExchangeRateProvider provider)
 		if (!latest.Rates.TryGetValue(toCurrencyCode, out var rate))
 			throw new InvalidOperationException($"Rate not found for {toCurrencyCode}");
 
-		return new ConversionResultDto
-		{
-			FromCurrencyCode = fromCurrencyCode,
-			ToCurrencyCode = toCurrencyCode,
-			OriginalAmount = amount,
-			ConvertedAmount = Math.Round(amount * rate, 6),
-			Rate = rate,
-			Timestamp = DateTime.Parse(latest.Date)
-		};
+		return new ConversionResultDto(fromCurrencyCode, toCurrencyCode, amount, Math.Round(amount * rate, 6), rate, DateTime.Parse(latest.Date));
 	}
 
 	public Task<LatestRatesResponse?> GetLatestRatesAsync(string currencyCode = "EUR")

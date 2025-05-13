@@ -1,20 +1,25 @@
-using System.Text;
+using CurrencyConverter.Data.CurrencyExchangeRateProviders;
+using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
+using CurrencyConverter.Middleware;
+using CurrencyConverter.Services;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Threading.RateLimiting;
-using Polly;
-using Polly.Extensions.Http;
+
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using Serilog;
-using CurrencyConverter.Middleware;
-using CurrencyConverter.Services;
-using CurrencyConverter.Data.CurrencyExchangeRateProviders;
-using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
 
-var builder = WebApplication.CreateBuilder(args);
+using Polly;
+using Polly.Extensions.Http;
+
+using Serilog;
+
+using System.Text;
+using System.Threading.RateLimiting;
+
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 // ─── Serilog ────────────────────────────────────────────────────────────────
 builder.Host.UseSerilog((ctx, cfg) =>
@@ -101,10 +106,7 @@ builder.Services.AddSwaggerGen(o =>
 
 // ─── HttpClient + Polly for FrankfurterClient ────────────────────────────────
 builder.Services
-	.AddHttpClient<IFrankfurterClient, FrankfurterClient>(client =>
-	{
-		client.BaseAddress = new Uri("https://api.frankfurter.dev/");
-	})
+	.AddHttpClient<IFrankfurterClient, FrankfurterClient>(client => client.BaseAddress = new Uri("https://api.frankfurter.dev/"))
 	.AddPolicyHandler(GetRetryPolicy())
 	.AddPolicyHandler(GetCircuitBreakerPolicy());
 
@@ -112,7 +114,7 @@ builder.Services
 builder.Services.AddScoped<ICurrencyExchangeRateProvider, FrankfurterProvider>();
 builder.Services.AddScoped<ICurrencyExchangeRateService, CurrencyExchangeRateService>();
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // ─── Pipeline ───────────────────────────────────────────────────────────────
 app.UseRateLimiter();

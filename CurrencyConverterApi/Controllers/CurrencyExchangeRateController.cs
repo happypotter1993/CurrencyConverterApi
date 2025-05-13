@@ -1,34 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
-
-using CurrencyConverter.Controllers.Models;
+﻿using CurrencyConverter.Controllers.Models;
 using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
 using CurrencyConverter.Services;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+using System.ComponentModel.DataAnnotations;
+
 namespace CurrencyConverter.Controllers
 {
 	[ApiController]
 	[Route("api/v1")]
 	[Authorize]
-	public class CurrencyExchangeRateController : ControllerBase
+	public class CurrencyExchangeRateController(ICurrencyExchangeRateService service) : ControllerBase
 	{
 		private static readonly string[] UnsupportedCurrencies = ["TRY", "PLN", "THB", "MXN"];
-		private readonly ICurrencyExchangeRateService _service;
-
-		public CurrencyExchangeRateController(ICurrencyExchangeRateService service)
-			=> _service = service;
+		private readonly ICurrencyExchangeRateService _service = service;
 
 		// GET /api/v1/currencies
 		[HttpGet("currencies")]
 		public async Task<ActionResult<IEnumerable<SupportedCurrencyDto>>> GetCurrenciesAsync()
 		{
-			var currencies = await _service.GetSupportedCurrenciesAsync();
+			IEnumerable<SupportedCurrencyDto> currencies = await _service.GetSupportedCurrenciesAsync();
 			return Ok(currencies);
 		}
 
@@ -49,7 +42,7 @@ namespace CurrencyConverter.Controllers
 				return BadRequest($"Conversion involving {string.Join(", ", UnsupportedCurrencies)} is not supported.");
 			}
 
-			var result = await _service.ConvertAsync(fromCurrencyCode, toCurrencyCode, amount);
+			ConversionResultDto result = await _service.ConvertAsync(fromCurrencyCode, toCurrencyCode, amount);
 			return Ok(result);
 		}
 
@@ -60,7 +53,7 @@ namespace CurrencyConverter.Controllers
 			string currencyCode = "EUR"
 		)
 		{
-			var result = await _service.GetLatestRatesAsync(currencyCode);
+			LatestRatesResponse? result = await _service.GetLatestRatesAsync(currencyCode);
 			if (result == null)
 				return NotFound();
 			return Ok(result);
@@ -79,10 +72,10 @@ namespace CurrencyConverter.Controllers
 			int pageSize = 10
 		)
 		{
-			var from = startDate ?? DateTime.UtcNow.AddMonths(-1).Date;
-			var to   = endDate   ?? DateTime.UtcNow.Date;
+			DateTime from = startDate ?? DateTime.UtcNow.AddMonths(-1).Date;
+			DateTime to   = endDate   ?? DateTime.UtcNow.Date;
 
-			var paged = await _service.GetHistoricalRatesAsync(
+			HistoricalRatesPagedDto paged = await _service.GetHistoricalRatesAsync(
 				from, to, currencyCode, pageNumber, pageSize
 			);
 

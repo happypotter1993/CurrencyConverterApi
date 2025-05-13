@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Threading.Tasks;
-
-using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
+﻿using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
 
 using Microsoft.Extensions.Caching.Memory;
 
