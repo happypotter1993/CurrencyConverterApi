@@ -9,62 +9,54 @@ using Polly.Extensions.Http;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
-using Microsoft.AspNetCore.Builder;
-using Frankfurter.API.Client.DependencyInjection;
-using CurrencyConverter.Data;
 using CurrencyConverter.Middleware;
+using CurrencyConverter.Services;
+using CurrencyConverter.Data.CurrencyExchangeRateProviders;
+using CurrencyConverter.Data.CurrencyExchangeRateProviders.Frankfurter;
 
-WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
-// ─────────────────────────────────────────────
-// Structured Logging: Serilog (file + console)
-// ─────────────────────────────────────────────
-builder.Host.UseSerilog((context, config) =>
-{
-	config.ReadFrom.Configuration(context.Configuration)
-		  .Enrich.FromLogContext()
-		  .WriteTo.Console()
-		  .WriteTo.File("Logs/api-log.txt", rollingInterval: RollingInterval.Day);
-});
+// ─── Serilog ────────────────────────────────────────────────────────────────
+builder.Host.UseSerilog((ctx, cfg) =>
+	cfg.ReadFrom.Configuration(ctx.Configuration)
+	   .Enrich.FromLogContext()
+	   .WriteTo.Console()
+	   .WriteTo.File("Logs/api-log.txt", rollingInterval: RollingInterval.Day)
+);
 
-// ─────────────────────────────────────────────
-// Services: Controllers, Caching, HTTP Context
-// ─────────────────────────────────────────────
+// ─── Framework services ─────────────────────────────────────────────────────
 builder.Services.AddControllers();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
 
-// ─────────────────────────────────────────────
-// Rate Limiting (Fixed Window)
-// ─────────────────────────────────────────────
-builder.Services.AddRateLimiter(options =>
+// ─── Rate Limiting ──────────────────────────────────────────────────────────
+builder.Services.AddRateLimiter(opts =>
 {
-	options.AddFixedWindowLimiter("default", options =>
+	opts.AddFixedWindowLimiter("default", o =>
 	{
-		options.PermitLimit = 20;
-		options.Window = TimeSpan.FromSeconds(10);
-		options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-		options.QueueLimit = 5;
+		o.PermitLimit = 20;
+		o.Window = TimeSpan.FromSeconds(10);
+		o.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+		o.QueueLimit = 5;
 	});
 });
 
-// ─────────────────────────────────────────────
-// OpenTelemetry Tracing: HTTP + ASP.NET Core
-// ─────────────────────────────────────────────
+// ─── OpenTelemetry ──────────────────────────────────────────────────────────
 builder.Services.AddOpenTelemetry()
-	.WithTracing(tracing =>
-	{
-		tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("CurrencyConverter"))
-			   .AddAspNetCoreInstrumentation()
-			   .AddHttpClientInstrumentation();
-	});
+	.WithTracing(t => t
+		.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("CurrencyConverter"))
+		.AddAspNetCoreInstrumentation()
+		.AddHttpClientInstrumentation()
+	);
 
-// ─────────────────────────────────────────────
-// Authentication: JWT Bearer (Dev Token)
-// ─────────────────────────────────────────────
+// ─── Authentication + Authorization ──────────────────────────────────────────
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 	.AddJwtBearer(options =>
 	{
+		var signingKey = builder.Configuration["Jwt:Key"];
+		if (string.IsNullOrWhiteSpace(signingKey))
+			throw new InvalidOperationException("Please set Jwt:Key in appsettings");
+
 		options.TokenValidationParameters = new TokenValidationParameters
 		{
 			ValidateIssuer = false,
@@ -72,82 +64,59 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 			ValidateLifetime = false,
 			ValidateIssuerSigningKey = true,
 			IssuerSigningKey = new SymmetricSecurityKey(
-				Encoding.UTF8.GetBytes("dev-assignment-key-ONLY_NOT_FOR_PROD"))
+				Encoding.UTF8.GetBytes(signingKey))
 		};
 	});
 
 builder.Services.AddAuthorization();
 
-// ─────────────────────────────────────────────
-// Swagger + JWT Token UI Support
-// ─────────────────────────────────────────────
+
+// ─── Swagger ────────────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
-
-builder.Services.AddSwaggerGen(options =>
+builder.Services.AddSwaggerGen(o =>
 {
-	options.SwaggerDoc("v1", new OpenApiInfo
+	o.SwaggerDoc("v1", new OpenApiInfo { Title = "Currency Converter API", Version = "v1" });
+	o.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
 	{
-		Title = "Currency Converter API",
-		Version = "v1"
-	});
-
-	options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-	{
-		Description = "Enter a valid JWT token like: Bearer {token}",
+		Description = "Enter a valid JWT like: Bearer {token}",
 		Name = "Authorization",
 		In = ParameterLocation.Header,
 		Type = SecuritySchemeType.Http,
 		Scheme = "bearer",
 		BearerFormat = "JWT"
 	});
-
-	options.AddSecurityRequirement(new OpenApiSecurityRequirement
+	o.AddSecurityRequirement(new OpenApiSecurityRequirement
 	{
+		[new OpenApiSecurityScheme
 		{
-			new OpenApiSecurityScheme
+			Reference = new OpenApiReference
 			{
-				Reference = new OpenApiReference
-				{
-					Type = ReferenceType.SecurityScheme,
-					Id = "Bearer"
-				}
-			},
-			new List<string>()
+				Type = ReferenceType.SecurityScheme,
+				Id = "Bearer"
+			}
 		}
+		] = Array.Empty<string>()
 	});
 });
 
-// ─────────────────────────────────────────────
-// HttpClient + Polly (Retry + Circuit Breaker)
-// ─────────────────────────────────────────────
-builder.Services.AddHttpClient<ICurrencyProvider, FrankfurterProvider>()
+// ─── HttpClient + Polly for FrankfurterClient ────────────────────────────────
+builder.Services
+	.AddHttpClient<IFrankfurterClient, FrankfurterClient>(client =>
+	{
+		client.BaseAddress = new Uri("https://api.frankfurter.dev/");
+	})
 	.AddPolicyHandler(GetRetryPolicy())
 	.AddPolicyHandler(GetCircuitBreakerPolicy());
 
-static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy() =>
-	HttpPolicyExtensions
-		.HandleTransientHttpError()
-		.WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+// ─── Your services ──────────────────────────────────────────────────────────
+builder.Services.AddScoped<ICurrencyExchangeRateProvider, FrankfurterProvider>();
+builder.Services.AddScoped<ICurrencyExchangeRateService, CurrencyExchangeRateService>();
 
-static IAsyncPolicy<HttpResponseMessage> GetCircuitBreakerPolicy() =>
-	HttpPolicyExtensions
-		.HandleTransientHttpError()
-		.CircuitBreakerAsync(handledEventsAllowedBeforeBreaking: 5, durationOfBreak: TimeSpan.FromSeconds(30));
+var app = builder.Build();
 
-// ─────────────────────────────────────────────
-// Dependency Injection (Core Services)
-// ─────────────────────────────────────────────
-//builder.Services.AddScoped<ICurrencyService, CurrencyService>();
-builder.Services.AddFrankfurterApiClient();
-
-// ─────────────────────────────────────────────
-// Build & Configure Middleware Pipeline
-// ─────────────────────────────────────────────
-WebApplication app = builder.Build();
-
-// Log + Trace incoming requests (task PDF compliant)
+// ─── Pipeline ───────────────────────────────────────────────────────────────
 app.UseRateLimiter();
-app.UseMiddleware<RequestLoggingMiddleware>(); // Logs IP, ClientId, Path, Status, Timing
+app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.UseSwagger();
 app.UseSwaggerUI();
@@ -156,5 +125,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
 app.Run();
+
+
+// ─── Polly helpers ──────────────────────────────────────────────────────────
+static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy() =>
+	HttpPolicyExtensions
+		.HandleTransientHttpError()
+		.WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+
+static IAsyncPolicy<HttpResponseMessage> GetCircuitBreakerPolicy() =>
+	HttpPolicyExtensions
+		.HandleTransientHttpError()
+		.CircuitBreakerAsync(5, TimeSpan.FromSeconds(30));
