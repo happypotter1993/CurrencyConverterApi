@@ -22,6 +22,7 @@ namespace CurrencyConverter.Controllers
 		public async Task<ActionResult<IEnumerable<SupportedCurrencyDto>>> GetCurrenciesAsync()
 		{
 			IEnumerable<SupportedCurrencyDto> currencies = await _service.GetSupportedCurrenciesAsync();
+			currencies = currencies.Where(currency => !UnsupportedCurrencies.Contains(currency.Code)).ToList();
 			return Ok(currencies);
 		}
 
@@ -53,6 +54,9 @@ namespace CurrencyConverter.Controllers
 			string currencyCode = "EUR"
 		)
 		{
+			if (UnsupportedCurrencies.Contains(currencyCode))
+				return BadRequest($"Conversion involving {string.Join(", ", UnsupportedCurrencies)} is not supported.");
+
 			LatestRatesResponse? result = await _service.GetLatestRatesAsync(currencyCode);
 			if (result == null)
 				return NotFound();
@@ -72,6 +76,9 @@ namespace CurrencyConverter.Controllers
 			int pageSize = 10
 		)
 		{
+			if (UnsupportedCurrencies.Contains(currencyCode))
+				return BadRequest($"Conversion involving {string.Join(", ", UnsupportedCurrencies)} is not supported.");
+			
 			DateTime from = startDate ?? DateTime.UtcNow.AddMonths(-1).Date;
 			DateTime to   = endDate   ?? DateTime.UtcNow.Date;
 

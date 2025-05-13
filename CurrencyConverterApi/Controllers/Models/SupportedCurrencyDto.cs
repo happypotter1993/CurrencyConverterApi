@@ -1,1 +1,1 @@
-﻿public record SupportedCurrencyDto(string CurrencyCode, string Currency);
+﻿public record SupportedCurrencyDto(string Code, string Name);

@@ -41,8 +41,8 @@ namespace CurrencyConverter.Tests
 
 			// Assert
 			Assert.Equal(2, result.Count);
-			Assert.Contains(result, dto => dto.CurrencyCode == "USD" && dto.Currency == "US Dollar");
-			Assert.Contains(result, dto => dto.CurrencyCode == "EUR" && dto.Currency == "Euro");
+			Assert.Contains(result, dto => dto.Code == "USD" && dto.Name == "US Dollar");
+			Assert.Contains(result, dto => dto.Code == "EUR" && dto.Name == "Euro");
 		}
 
 		[Fact]
